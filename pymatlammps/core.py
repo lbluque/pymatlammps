@@ -4,7 +4,6 @@ import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
 from pymatgen import SymmOp
-from pymatgen.io.lammps.data import lattice_2_lmpbox
 
 
 class PyMatLammps(PyLammps):
@@ -15,6 +14,14 @@ class PyMatLammps(PyLammps):
     Basically most of the convienience is in setting up the simulation domain
     from a pymatgen object and the reverse, obtaining a pymatgen object from
     a lammps simulation result.
+
+    Attributes:
+        atom_types (dict):
+            dictionary of IDs for different atom types. Keys are pymatgen
+            Element/Species, values are the lammps ids.
+        domain_obj (Structure):
+            pymatgen object representing lammps simulation domain with applied
+            operations necessary for lammps input. Currently only structures.
     """
 
     # default setup commands
@@ -29,9 +36,21 @@ class PyMatLammps(PyLammps):
             kwargs['cmdargs'] = ['-nocite']
         super().__init__(*args, **kwargs)
         self.atom_types = None
+        self.domain_obj = None
         self.lmp.commands_list(self.default_cmds)
 
     def setup_from_structure(self, structure, sort=True):
+        """Setup a lammps simulation domain from a pymatgen structure
+
+        Currently only bulk 3D structure, since thats all I'm using this for.
+
+        Args:
+            structure (Structure):
+                Structure object to use to setup Lammps simulation. Must be
+                an ordered structure.
+            sort (bool):
+                Sort the sites in the structure.
+        """
         if sort:
             structure.sort()
 
@@ -55,9 +74,18 @@ class PyMatLammps(PyLammps):
             self.mass(i, float(sp.atomic_mass))
             if charge:
                 self.set('type', i, 'charge', getattr(sp, 'oxi_state', 0))
-        return lmp_structure
+
+        self.domain_obj = lmp_structure
 
     def _region_from_lattice(self, lattice, region_name):
+        """Set a lammps region from a pymatgen Lattice object
+
+        Args:
+            lattice (Lattice):
+                Lattice to use to define the lammps region.
+            region_name (str):
+                name to use as lammps ID for the region.
+        """
         a, b, c = lattice.abc
         u, v, w = lattice.matrix
         matrix = np.zeros((3, 3), order='C')
@@ -77,6 +105,11 @@ class PyMatLammps(PyLammps):
         return symmop
 
     def _atoms_from_structure(self, structure):
+        """Create lammps atoms from a pymatgen structure
+
+        Args:
+            structure (Structure)
+        """
         for site in structure:
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
