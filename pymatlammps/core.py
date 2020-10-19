@@ -20,8 +20,9 @@ class PyMatLammps(PyLammps):
             dictionary of IDs for different atom types. Keys are pymatgen
             Element/Species, values are the lammps ids.
         domain_obj (Structure):
-            pymatgen object representing lammps simulation domain with applied
-            operations necessary for lammps input. Currently only structures.
+            pymatgen object representing initial lammps simulation domain.
+            Including the applied operations necessary for lammps input.
+            Currently only structures.
     """
 
     # default setup commands
@@ -55,7 +56,7 @@ class PyMatLammps(PyLammps):
             structure.sort()
 
         self.atom_types = {s: i + 1 for i, s in
-                           enumerate(set(structure.species))}
+                           enumerate(structure.composition)}
 
         charge = any(getattr(sp, 'oxi_state', 0) != 0
                      for sp in structure.species)
@@ -65,7 +66,7 @@ class PyMatLammps(PyLammps):
         # for now assume bulk structures only
         self.boundary('p', 'p', 'p')
         symmop = self._region_from_lattice(structure.lattice, 'unit-cell')
-        self.create_box(len(structure), 'unit-cell')
+        self.create_box(len(structure.composition), 'unit-cell')
         lmp_structure = structure.copy()
         lmp_structure.apply_operation(symmop)
         self._atoms_from_structure(lmp_structure)
@@ -121,3 +122,8 @@ class PyMatLammps(PyLammps):
                      'a2', *structure.lattice.matrix[1],
                      'a3', *structure.lattice.matrix[2],
                      *basis)
+
+    # TODO easy way to setup force fields
+    # TODO easy way to set up minimization command
+    # TODO easy way to run minimization and export pymatgen structures and
+    #  corresponding energy...then we are ready to go into some atomate perhaps
