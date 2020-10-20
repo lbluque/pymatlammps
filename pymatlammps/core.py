@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
-from pymatgen import SymmOp, Structure
+from pymatgen import SymmOp, Structure, Lattice
 
 
 class PyMatLammps(PyLammps):
@@ -51,24 +51,120 @@ class PyMatLammps(PyLammps):
         self.domain = None
         self.lmp.commands_list(self.default_cmds)
 
-    def get_potential_energy(self):
+    def get_potential_energy(self) -> float:
         """Get the potential energy evaluated by lammps."""
         _ = self.run(0)  # force evaluation
         return self.variables['pe'].value
 
-    def get_structure(self):
-        """Get structure for current lammps state"""
-        lo, hi, xy, yz, xz, _, _ = self.lmp.extract_box()
-        bounds = np.array(hi) - np.array(lo)
-        matrix = [[bounds[0], 0, 0], [xy, bounds[1], 0], [xz, yz, bounds[2]]]
-
+    def get_structure(self) -> Structure:
+        """Get a Structure for current lammps state"""
+        lattice = self.get_lattice()
         inv_atom_types = {v: k for k, v in self.atom_types.items()}
         species = [inv_atom_types[self.atoms[i].type]
                    for i in range(len(self.atoms))]
         coords = [self.atoms[i].position for i in range(len(self.atoms))]
-        return Structure(matrix, species, coords, coords_are_cartesian=True)
+        return Structure(lattice, species, coords, coords_are_cartesian=True)
 
-    def set_structure(self, structure, sort=True):
+    def get_lattice(self) -> Lattice:
+        """Get a Lattice for current lammps state"""
+        lo, hi, xy, yz, xz, _, _ = self.lmp.extract_box()
+        bounds = np.array(hi) - np.array(lo)
+        matrix = [[bounds[0], 0, 0], [xy, bounds[1], 0], [xz, yz, bounds[2]]]
+        return Lattice(matrix)
+
+    def optimize_site_coords(self, energy_tol=0.0, force_tol=1E-10,
+                             max_iter=5000, max_eval=5000, algo='cg',
+                             algo_params: dict = None):
+        """Optimize structure site coordinates using lammps minimize.
+
+        This does not use a fix to allow cell relaxation. For full relaxation
+        use the optimize_structure method.
+
+        Args:
+            energy_tol (float):
+                energy stopping tolerance
+            force_tol (float):
+                force stopping tolerance
+            max_iter (int):
+                maximum no. of iterations
+            max_eval (int):
+                maximum number of force evaluations
+            algo (str):
+                minimization algorithm. See for details:
+                https://lammps.sandia.gov/doc/min_style.html
+            algo_params (dict):
+                parameters to set for the minimization algorithm.
+        """
+        self.reset_timestep(0)
+        self.min_style(algo)
+        if algo_params is not None:
+            for key, vals in algo_params.items():
+                self.min_modify(key, vals)
+        _ = self.minimize(energy_tol, force_tol, max_iter, max_eval)
+
+    def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
+                           max_iter=1000, max_eval=1000, max_cycles=100,
+                           algo='cg', algo_params: dict = None,
+                           box_fix_params: dict = None):
+        """Perform a structure optimization using lammps minimize.
+
+        This will perform a series of cycles restarting the minimization for
+        the latest box parameters, this allows lamps to reset the minimization
+        objective function to the current box dimensions and improve the
+        obtained local minima.
+
+        A target stress will be set using the box/relax fix (default to zero
+        stress) to optimize the box shape.
+
+        akin to:
+        https://www.ctcms.nist.gov/potentials/iprPy/notebook/relax_static.html
+
+        Args:
+            box_tol:
+            energy_tol (float):
+                energy stopping tolerance
+            force_tol (float):
+                force stopping tolerance
+            max_iter (int):
+                maximum no. of iterations
+            max_eval (int):
+                maximum number of force evaluations
+            max_cycles:
+            algo (str):
+                minimization algorithm. See for details:
+                https://lammps.sandia.gov/doc/min_style.html
+            algo_params (dict):
+                parameters to set for the minimization algorithm.
+            box_fix_params (dict):
+                parameters defining a lammps box/relax fix, excluding the ID
+                The default will allow 6 box parameters to change independently
+                at zero stress (tri 0.0)
+                https://lammps.sandia.gov/doc/fix_box_relax.html
+        """
+        prev_matrix = self.get_lattice().matrix
+        self.change_box('all', 'triclinic')
+        if box_fix_params is None:
+            self.fix('relax', 'all', 'box/relax', 'tri', 0)
+        else:
+            for key, val in box_fix_params.items():
+                self.fix('relax', 'all', 'box/relax', key, val)
+        self.fix('relax', 'all', 'box/relax', 'fixedpoint', 0, 0, 0)
+
+        converged = False
+        for _ in range(max_cycles):
+            self.optimize_site_coords(energy_tol, force_tol, max_iter,
+                                      max_eval, algo, algo_params)
+            if np.allclose(self.get_lattice().matrix, prev_matrix,
+                           rtol=box_tol):
+                converged = True
+                break
+            prev_matrix = self.get_lattice().matrix
+
+        if not converged:
+            raise RuntimeWarning("Structure optimization failed to converge "
+                                 "to the given tolerances.")
+
+    def set_structure(self, structure: Structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
 
         Currently only bulk 3D structure, since thats all I'm using this for.
@@ -109,7 +205,8 @@ class PyMatLammps(PyLammps):
             if charge:
                 self.set('type', i, 'charge', getattr(sp, 'oxi_state', 0))
 
-    def create_region_from_lattice(self, lattice, region_name):
+    def create_region_from_lattice(self, lattice: Lattice,
+                                   region_name: str) -> SymmOp:
         """Set a lammps region from a pymatgen Lattice object
 
         Args:
@@ -117,6 +214,8 @@ class PyMatLammps(PyLammps):
                 Lattice to use to define the lammps region.
             region_name (str):
                 name to use as lammps ID for the region.
+        Returns:
+            SymmOp: symmetry operations necessary to convert to lammps
         """
         a, b, c = lattice.abc
         u, v, w = lattice.matrix
@@ -136,7 +235,7 @@ class PyMatLammps(PyLammps):
         symmop = SymmOp.from_rotation_and_translation(rotation_matrix)
         return symmop
 
-    def create_atoms_from_structure(self, structure):
+    def create_atoms_from_structure(self, structure: Structure):
         """Create lammps atoms from a pymatgen structure
 
         Args:
@@ -154,7 +253,7 @@ class PyMatLammps(PyLammps):
                                "coordinates appear outside box.\n"
                                "Check lammps log for more details.")
 
-    def create_lattice_from_structure(self, structure):
+    def create_lattice_from_structure(self, structure: Structure):
         basis = sum((['basis', *crds] for crds in structure.frac_coords), [])
         self.lattice('custom', 1.0,
                      'a1', *structure.lattice.matrix[0],
