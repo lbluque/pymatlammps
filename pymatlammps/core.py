@@ -19,7 +19,7 @@ class PyMatLammps(PyLammps):
         atom_types (dict):
             dictionary of IDs for different atom types. Keys are pymatgen
             Element/Species, values are the lammps ids.
-        domain_obj (Structure):
+        domain (Structure):
             pymatgen object representing initial lammps simulation domain.
             Including the applied operations necessary for lammps input.
             Currently only structures.
@@ -29,7 +29,18 @@ class PyMatLammps(PyLammps):
     default_cmds = [
         "units metal",
         "atom_style atomic",
-        "atom_modify map array sort 0 0.0"
+        "atom_modify map array sort 0 0.0",
+        "variable pxx equal pxx",
+        "variable pyy equal pyy",
+        "variable pzz equal pzz",
+        "variable pxy equal pxy",
+        "variable pxz equal pxz",
+        "variable pyz equal pyz",
+        "variable fx atom fx",
+        "variable fy atom fy",
+        "variable fz atom fz",
+        "variable pe equal pe",
+        "neigh_modify every 1 delay 0 check yes"
     ]
 
     def __init__(self, *args, **kwargs):
@@ -37,10 +48,10 @@ class PyMatLammps(PyLammps):
             kwargs['cmdargs'] = ['-nocite']
         super().__init__(*args, **kwargs)
         self.atom_types = None
-        self.domain_obj = None
+        self.domain = None
         self.lmp.commands_list(self.default_cmds)
 
-    def setup_from_structure(self, structure, sort=True):
+    def set_structure(self, structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
 
         Currently only bulk 3D structure, since thats all I'm using this for.
@@ -65,20 +76,23 @@ class PyMatLammps(PyLammps):
 
         # for now assume bulk structures only
         self.boundary('p', 'p', 'p')
-        symmop = self._region_from_lattice(structure.lattice, 'unit-cell')
-        self.create_box(len(structure.composition), 'unit-cell')
+        symmop = self.create_region_from_lattice(structure.lattice, 'unit-cell')
         lmp_structure = structure.copy()
         lmp_structure.apply_operation(symmop)
-        self._atoms_from_structure(lmp_structure)
+        self.domain = lmp_structure
+
+        if not lmp_structure.lattice.is_orthogonal:
+            self.box('tilt', 'large')
+
+        self.create_box(len(structure.composition), 'unit-cell')
+        self.create_atoms_from_structure(lmp_structure)
 
         for sp, i in self.atom_types.items():
             self.mass(i, float(sp.atomic_mass))
             if charge:
                 self.set('type', i, 'charge', getattr(sp, 'oxi_state', 0))
 
-        self.domain_obj = lmp_structure
-
-    def _region_from_lattice(self, lattice, region_name):
+    def create_region_from_lattice(self, lattice, region_name):
         """Set a lammps region from a pymatgen Lattice object
 
         Args:
@@ -97,25 +111,34 @@ class PyMatLammps(PyLammps):
         matrix[1, 1] = norm(uxv / a)  # yhi
         matrix[2, 1] = np.dot(w, np.cross(uxv, u / a)) / norm(uxv)  # yz
         matrix[2, 2] = det(lattice.matrix) / norm(uxv)  # zhi
-        xhi, _, _, xy, yhi, _, xz, yz, zhi = matrix.flatten()
+        xhi, _, _, xy, yhi, _, xz, yz, zhi = matrix.flatten(order='C')
         # assume region origin is always (0, 0, 0)
         # use only one region rn so set id to 1
         self.region(region_name, 'prism', 0, xhi, 0, yhi, 0, zhi, xy, xz, yz)
-        rot = solve(matrix, lattice.matrix)  # rotation matrix
-        symmop = SymmOp.from_rotation_and_translation(rot)
+        rotation_matrix = solve(matrix, lattice.matrix)
+        symmop = SymmOp.from_rotation_and_translation(rotation_matrix)
         return symmop
 
-    def _atoms_from_structure(self, structure):
+    def create_atoms_from_structure(self, structure):
         """Create lammps atoms from a pymatgen structure
 
         Args:
             structure (Structure)
         """
         for site in structure:
+            # make small enough cords exactly zero so lammps is happy
+            site.coords += 1E-15  # force small negatives to positive
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
 
-    def _lattice_from_structure(self, structure):
+        if len(structure) != len(self.atoms):
+            raise RuntimeError(f"Only {len(self.atoms)} lammps atoms from "
+                               f"{len(structure)} in the given structure "
+                               "were created. \nProbably numerical error made "
+                               "coordinates appear outside box.\n"
+                               "Check lammps log for more details.")
+
+    def create_lattice_from_structure(self, structure):
         basis = sum((['basis', *crds] for crds in structure.frac_coords), [])
         self.lattice('custom', 1.0,
                      'a1', *structure.lattice.matrix[0],
