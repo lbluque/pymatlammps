@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
-from pymatgen import SymmOp
+from pymatgen import SymmOp, Structure
 
 
 class PyMatLammps(PyLammps):
@@ -50,6 +50,23 @@ class PyMatLammps(PyLammps):
         self.atom_types = None
         self.domain = None
         self.lmp.commands_list(self.default_cmds)
+
+    def get_potential_energy(self):
+        """Get the potential energy evaluated by lammps."""
+        _ = self.run(0)  # force evaluation
+        return self.variables['pe'].value
+
+    def get_structure(self):
+        """Get structure for current lammps state"""
+        lo, hi, xy, yz, xz, _, _ = self.lmp.extract_box()
+        bounds = np.array(hi) - np.array(lo)
+        matrix = [[bounds[0], 0, 0], [xy, bounds[1], 0], [xz, yz, bounds[2]]]
+
+        inv_atom_types = {v: k for k, v in self.atom_types.items()}
+        species = [inv_atom_types[self.atoms[i].type]
+                   for i in range(len(self.atoms))]
+        coords = [self.atoms[i].position for i in range(len(self.atoms))]
+        return Structure(matrix, species, coords, coords_are_cartesian=True)
 
     def set_structure(self, structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
@@ -126,7 +143,6 @@ class PyMatLammps(PyLammps):
             structure (Structure)
         """
         for site in structure:
-            # make small enough cords exactly zero so lammps is happy
             site.coords += 1E-15  # force small negatives to positive
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
