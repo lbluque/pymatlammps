@@ -1,5 +1,7 @@
 """Simple class to interface PyLammps and pymatgen"""
 
+import warnings
+from ast import literal_eval
 import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
@@ -74,7 +76,8 @@ class PyMatLammps(PyLammps):
 
     def optimize_site_coords(self, energy_tol=0.0, force_tol=1E-10,
                              max_iter=5000, max_eval=5000, algo='cg',
-                             algo_params: dict = None):
+                             algo_params: dict = None, dump_nstep=1,
+                             dump_file='coordrelax.dump'):
         """Optimize structure site coordinates using lammps minimize.
 
         This does not use a fix to allow cell relaxation. For full relaxation
@@ -94,18 +97,32 @@ class PyMatLammps(PyLammps):
                 https://lammps.sandia.gov/doc/min_style.html
             algo_params (dict):
                 parameters to set for the minimization algorithm.
+            dump_nstep (int):
+                dump atom positions every nsteps.
+            dump_file (str):
+                dump file name.
         """
         self.reset_timestep(0)
+        if dump_nstep > 0:
+            self.compute('pea', 'all', 'pe/atom')
+            self.dump('coord-relax', 'all', 'custom', dump_nstep, dump_file,
+                      'type', 'x', 'y', 'z', 'c_pea')
+
         self.min_style(algo)
         if algo_params is not None:
             for key, vals in algo_params.items():
                 self.min_modify(key, vals)
         _ = self.minimize(energy_tol, force_tol, max_iter, max_eval)
 
+        if dump_nstep > 0:
+            self.uncompute('pea')
+            self.undump('coord-relax')
+
+
     def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
                            max_iter=1000, max_eval=1000, max_cycles=100,
                            algo='cg', algo_params: dict = None,
-                           box_fix_params: dict = None):
+                           box_fix_params: dict = None, dump_nstep=1):
         """Perform a structure optimization using lammps minimize.
 
         This will perform a series of cycles restarting the minimization for
@@ -140,25 +157,36 @@ class PyMatLammps(PyLammps):
                 The default will allow 6 box parameters to change independently
                 at zero stress (tri 0.0)
                 https://lammps.sandia.gov/doc/fix_box_relax.html
+            dump_nstep (int):
+                dump atom positions every nsteps.
         """
+        if not isinstance(self.domain, Structure):
+            warnings.warn(f"Lammps was setup using a {type(self.domain)}"
+                          f" and not a {Structure}.\n Make sure that is what "
+                          "you want.")
+
         prev_matrix = self.get_lattice().matrix
+
         self.change_box('all', 'triclinic')
         if box_fix_params is None:
-            self.fix('relax', 'all', 'box/relax', 'tri', 0)
+            self.fix('relax', 'all', 'box/relax', 'tri', 0.0)
         else:
             for key, val in box_fix_params.items():
                 self.fix('relax', 'all', 'box/relax', key, val)
         self.fix('relax', 'all', 'box/relax', 'fixedpoint', 0, 0, 0)
 
         converged = False
-        for _ in range(max_cycles):
+        for i in range(max_cycles):
             self.optimize_site_coords(energy_tol, force_tol, max_iter,
-                                      max_eval, algo, algo_params)
+                                      max_eval, algo, algo_params,
+                                      dump_nstep, f'coordrelax.dump.{i}')
             if np.allclose(self.get_lattice().matrix, prev_matrix,
                            rtol=box_tol):
                 converged = True
                 break
             prev_matrix = self.get_lattice().matrix
+
+        self.unfix('relax')
 
         if not converged:
             raise RuntimeWarning("Structure optimization failed to converge "
@@ -260,6 +288,47 @@ class PyMatLammps(PyLammps):
                      'a2', *structure.lattice.matrix[1],
                      'a3', *structure.lattice.matrix[2],
                      *basis)
+
+    @staticmethod
+    def parse_dump(file):
+        """Parse a lammps dump file
+
+        Args:
+            file (str):
+                file path to lammps dump file
+
+        Returns:
+            dict: Dictionary with data in dump
+        """
+        entries = []
+        with open(file, 'r') as fp:
+            cache = []
+            for line in fp:
+                if line.startswith("ITEM: TIMESTEP"):
+                    if len(cache) > 0:
+                        entry = {'timestep': int(cache[1]),
+                                 'natoms': int(cache[3]), 'data': []}
+                        matrix = np.zeros((3, 3))
+                        bounds = np.array([[float(i) for i in row.split(' ')]
+                                           for row in cache[5:8]])
+                        for i, bound in enumerate(bounds):
+                            matrix[i, i] = bound[0] - bound[1]
+                        if bounds.shape == (3, 3):  # tilts
+                            matrix[1, 0] = bounds[0, 2]
+                            matrix[2, 0] = bounds[1, 2]
+                            matrix[2, 1] = bounds[2, 2]
+                        entry['lattice'] = Lattice(matrix)
+                        keys = cache[8].replace("ITEM: ATOMS", "").split()
+                        entry['data'] = [
+                            {key: literal_eval(value) for key, value
+                             in zip(keys, values.split(' '))}
+                            for values in cache[9:]]
+                        entries.append(entry)
+                    cache = [line]
+                else:
+                    cache.append(line)
+        return entries
+
 
     # TODO easy way to setup force fields
     # TODO easy way to set up minimization command
