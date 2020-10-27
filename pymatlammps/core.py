@@ -2,6 +2,7 @@
 
 import warnings
 from ast import literal_eval
+from collections import namedtuple
 import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
@@ -53,6 +54,12 @@ class PyMatLammps(PyLammps):
         self.domain = None
         self.lmp.commands_list(self.default_cmds)
 
+    @property
+    def species_types(self):
+        """Return the inverse mapping of atom_types"""
+        if self.atom_types is not None:
+            return {v: k for k, v in self.atom_types.items()}
+
     def get_potential_energy(self) -> float:
         """Get the potential energy evaluated by lammps."""
         _ = self.run(0)  # force evaluation
@@ -61,8 +68,7 @@ class PyMatLammps(PyLammps):
     def get_structure(self) -> Structure:
         """Get a Structure for current lammps state"""
         lattice = self.get_lattice()
-        inv_atom_types = {v: k for k, v in self.atom_types.items()}
-        species = [inv_atom_types[self.atoms[i].type]
+        species = [self.species_types[self.atoms[i].type]
                    for i in range(len(self.atoms))]
         coords = [self.atoms[i].position for i in range(len(self.atoms))]
         return Structure(lattice, species, coords, coords_are_cartesian=True)
@@ -117,7 +123,6 @@ class PyMatLammps(PyLammps):
         if dump_nstep > 0:
             self.uncompute('pea')
             self.undump('coord-relax')
-
 
     def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
                            max_iter=1000, max_eval=1000, max_cycles=100,
@@ -289,8 +294,41 @@ class PyMatLammps(PyLammps):
                      'a3', *structure.lattice.matrix[2],
                      *basis)
 
+    def get_dump_trajectory(self, file: str):
+        """Get pyamatgen structures and corresponding properties.
+
+        Properties computed and saved to a dump file by lammps.
+
+        Args:
+            file (str):
+                file path to lammps dump file
+
+        Returns:
+            list of named tuple: trajectory with structure and properties
+        """
+        dump = self.parse_dump(file)
+
+        Entry = namedtuple('Entry', ['timestep', 'structure'])
+        trajectory = []
+        for entry in dump:
+            species, coords, properties = [], [], []
+            for item in entry['data']:
+                species.append(self.species_types[item['type']])
+                coords.append((item['x'], item['y'], item['z']))
+                properties.append({k: v for k, v in item.items()
+                                   if k not in ('x', 'y', 'z', 'type')})
+
+            structure = Structure(Lattice.from_dict(entry['lattice']),
+                                  species=species, coords=coords,
+                                  coords_are_cartesian=True)
+            for site, props in zip(structure, properties):
+                site.properties.update(props)
+            trajectory.append(Entry(entry['timestep'], structure))
+
+        return trajectory
+
     @staticmethod
-    def parse_dump(file):
+    def parse_dump(file: str):
         """Parse a lammps dump file
 
         Args:
@@ -317,7 +355,7 @@ class PyMatLammps(PyLammps):
                             matrix[1, 0] = bounds[0, 2]
                             matrix[2, 0] = bounds[1, 2]
                             matrix[2, 1] = bounds[2, 2]
-                        entry['lattice'] = Lattice(matrix)
+                        entry['lattice'] = Lattice(matrix).as_dict()
                         keys = cache[8].replace("ITEM: ATOMS", "").split()
                         entry['data'] = [
                             {key: literal_eval(value) for key, value
