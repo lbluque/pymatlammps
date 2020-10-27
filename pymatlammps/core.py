@@ -6,7 +6,10 @@ from collections import namedtuple
 import numpy as np
 from numpy.linalg import norm, det, solve
 from lammps import PyLammps
-from pymatgen import SymmOp, Structure, Lattice
+from pymatgen import SymmOp, Structure, Lattice, Species, Element
+
+
+__author__ = "Luis Barroso-Luque"
 
 
 class PyMatLammps(PyLammps):
@@ -197,6 +200,31 @@ class PyMatLammps(PyLammps):
             raise RuntimeWarning("Structure optimization failed to converge "
                                  "to the given tolerances.")
 
+    def set_pair_potential(self, style: list, pair_coeffs: list):
+        """Set a pair style potential for lammps.
+
+        Allows species/elements instead of lammps types to select species.
+
+        Args:
+            style (list):
+                lammps pair_style given as a list of str.
+            pair_coeffs (list):
+                lammps pair coefficients as list of lists. Each list can
+                include two pymatgen Element/Species included in the system
+                instead of the standard lammps input.
+        """
+        self.pair_style(*style)
+        for coeffs in pair_coeffs:
+            if (isinstance(coeffs[0], Species) or isinstance(coeffs[0], Element)
+                and
+               isinstance(coeffs[1], Species) or isinstance(coeffs[1], Element)):
+                self.pair_coeff(self.atom_types[coeffs[0]],
+                                self.atom_types[coeffs[1]], *coeffs[2:])
+            else:
+                self.pair_coeff(*coeffs)
+
+        _ = self.run(0)  # force calc to check if potential correctly set
+
     def set_structure(self, structure: Structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
 
@@ -366,9 +394,3 @@ class PyMatLammps(PyLammps):
                 else:
                     cache.append(line)
         return entries
-
-
-    # TODO easy way to setup force fields
-    # TODO easy way to set up minimization command
-    # TODO easy way to run minimization and export pymatgen structures and
-    #  corresponding energy...then we are ready to go into some atomate perhaps
