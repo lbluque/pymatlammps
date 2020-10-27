@@ -114,9 +114,9 @@ class PyMatLammps(PyLammps):
         """
         self.reset_timestep(0)
         if dump_nstep > 0:
-            self.compute('pea', 'all', 'pe/atom')
+            self.compute('peatom', 'all', 'pe/atom')
             self.dump('coord-relax', 'all', 'custom', dump_nstep, dump_file,
-                      'type', 'x', 'y', 'z', 'c_pea')
+                      'type', 'x', 'y', 'z', 'c_peatom')
 
         self.min_style(algo)
         if algo_params is not None:
@@ -125,7 +125,7 @@ class PyMatLammps(PyLammps):
         _ = self.minimize(energy_tol, force_tol, max_iter, max_eval)
 
         if dump_nstep > 0:
-            self.uncompute('pea')
+            self.uncompute('peatom')
             self.undump('coord-relax')
 
     def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
@@ -146,7 +146,9 @@ class PyMatLammps(PyLammps):
         https://www.ctcms.nist.gov/potentials/iprPy/notebook/relax_static.html
 
         Args:
-            box_tol:
+            box_tol (float):
+                tolerance between changes of box (lattice) between successive
+                minimizations
             energy_tol (float):
                 energy stopping tolerance
             force_tol (float):
@@ -178,11 +180,11 @@ class PyMatLammps(PyLammps):
 
         self.change_box('all', 'triclinic')
         if box_fix_params is None:
-            self.fix('relax', 'all', 'box/relax', 'tri', 0.0)
+            self.fix('relax', 'all', 'box/relax', 'tri', 0.0,
+                     'fixedpoint', 0, 0, 0)
         else:
-            for key, val in box_fix_params.items():
-                self.fix('relax', 'all', 'box/relax', key, val)
-        self.fix('relax', 'all', 'box/relax', 'fixedpoint', 0, 0, 0)
+            self.fix('relax', 'all', 'box/relax', 'fixedpoint', 0, 0, 0,
+                     *(i for item in box_fix_params.items() for i in item))
 
         converged = False
         for i in range(max_cycles):
