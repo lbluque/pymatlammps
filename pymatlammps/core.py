@@ -203,6 +203,51 @@ class PyMatLammps(PyLammps):
             raise RuntimeWarning("Structure optimization failed to converge "
                                  "to the given tolerances.")
 
+    def optimize_volume(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
+                        max_iter=1000, max_eval=1000, max_cycles=100,
+                        algo='cg', algo_params: dict = None, dump_nstep=1):
+        """Optimize lammps box volume (pymatgen Lattice) only.
+
+        Sites are scaled accordingly such that the optimized volume domain
+        is just a scaled version of the input.
+
+        To do this simply run the optimize structure command allowing box
+        relaxations and reset sites to original locations, scaled accordingly.
+
+        Args:
+            box_tol (float):
+                tolerance between changes of box (lattice) between successive
+                minimizations
+            energy_tol (float):
+                energy stopping tolerance
+            force_tol (float):
+                force stopping tolerance
+            max_iter (int):
+                maximum no. of iterations
+            max_eval (int):
+                maximum number of force evaluations
+            max_cycles:
+            algo (str):
+                minimization algorithm. See for details:
+                https://lammps.sandia.gov/doc/min_style.html
+            algo_params (dict):
+                parameters to set for the minimization algorithm.
+                https://lammps.sandia.gov/doc/fix_box_relax.html
+            dump_nstep (int):
+                dump atom positions every nsteps.
+        """
+        self.optimize_structure(box_tol, energy_tol, force_tol, max_iter,
+                                max_eval, max_cycles, algo, algo_params,
+                                box_fix_params={'iso': 0.0},
+                                dump_nstep=dump_nstep)
+        vol_opt = self.get_structure().volume
+        structure = self.domain.copy()
+        structure.scale_lattice(vol_opt)
+
+        # update lammps atom positions
+        for i, coords in enumerate(structure.cart_coords):
+            self.atoms[i].position = coords
+
     def set_pair_potential(self, style: list, *pair_coeffs: list):
         """Set a pair style potential for lammps.
 
