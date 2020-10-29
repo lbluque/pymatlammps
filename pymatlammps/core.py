@@ -5,6 +5,7 @@ from ast import literal_eval
 from collections import namedtuple
 import numpy as np
 from numpy.linalg import norm, det, solve
+from monty.io import zopen
 from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
 from pymatgen import SymmOp, Structure, Lattice, Species, Element
@@ -87,7 +88,7 @@ class PyMatLammps(PyLammps):
     def optimize_site_coords(self, energy_tol=0.0, force_tol=1E-10,
                              max_iter=5000, max_eval=5000, algo='cg',
                              algo_params: dict = None, dump_nstep=1,
-                             dump_file='coordrelax.dump'):
+                             dump_file='coordopt.dump'):
         """Optimize structure site coordinates using lammps minimize.
 
         This does not use a fix to allow cell relaxation. For full relaxation
@@ -131,7 +132,8 @@ class PyMatLammps(PyLammps):
     def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
                            max_iter=1000, max_eval=1000, max_cycles=100,
                            algo='cg', algo_params: dict = None,
-                           box_fix_params: dict = None, dump_nstep=1):
+                           box_fix_params: dict = None, dump_nstep=1,
+                           dump_file='structopt.dump'):
         """Perform a structure optimization using lammps minimize.
 
         This will perform a series of cycles restarting the minimization for
@@ -170,6 +172,8 @@ class PyMatLammps(PyLammps):
                 https://lammps.sandia.gov/doc/fix_box_relax.html
             dump_nstep (int):
                 dump atom positions every nsteps.
+            dump_file (str):
+                dump file name.
         """
         if not isinstance(self.domain, Structure):
             warnings.warn(f"Lammps was setup using a {type(self.domain)}"
@@ -190,7 +194,7 @@ class PyMatLammps(PyLammps):
         for i in range(max_cycles):
             self.optimize_site_coords(energy_tol, force_tol, max_iter,
                                       max_eval, algo, algo_params,
-                                      dump_nstep, f'coordrelax.dump.{i}')
+                                      dump_nstep, f'{dump_file}.{i}')
             if np.allclose(self.get_lattice().matrix, prev_matrix,
                            rtol=box_tol):
                 converged = True
@@ -205,7 +209,9 @@ class PyMatLammps(PyLammps):
 
     def optimize_volume(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
                         max_iter=1000, max_eval=1000, max_cycles=100,
-                        algo='cg', algo_params: dict = None, dump_nstep=1):
+                        algo='cg', algo_params: dict = None,
+                        dump_nstep: int = 1,
+                        dump_file: str = 'structopt.dump'):
         """Optimize lammps box volume (pymatgen Lattice) only.
 
         Sites are scaled accordingly such that the optimized volume domain
@@ -235,11 +241,13 @@ class PyMatLammps(PyLammps):
                 https://lammps.sandia.gov/doc/fix_box_relax.html
             dump_nstep (int):
                 dump atom positions every nsteps.
+            dump_file (str):
+                dump file name.
         """
         self.optimize_structure(box_tol, energy_tol, force_tol, max_iter,
                                 max_eval, max_cycles, algo, algo_params,
                                 box_fix_params={'iso': 0.0},
-                                dump_nstep=dump_nstep)
+                                dump_nstep=dump_nstep, dump_file=dump_file)
         vol_opt = self.get_structure().volume
         structure = self.domain.copy()
         structure.scale_lattice(vol_opt)
@@ -269,8 +277,6 @@ class PyMatLammps(PyLammps):
                                 *coeffs[2:])
             except ValueError:
                 self.pair_coeff(*coeffs)
-
-        _ = self.run(0)  # force calc to check if potential correctly set
 
     def set_structure(self, structure: Structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
@@ -381,7 +387,7 @@ class PyMatLammps(PyLammps):
         Returns:
             list of named tuple: trajectory with structure and properties
         """
-        dump = self.parse_dump(file)
+        dump = parse_dump(file)
 
         Entry = namedtuple('Entry', ['timestep', 'structure'])
         trajectory = []
@@ -402,42 +408,42 @@ class PyMatLammps(PyLammps):
 
         return trajectory
 
-    @staticmethod
-    def parse_dump(file: str):
-        """Parse a lammps dump file
 
-        Args:
-            file (str):
-                file path to lammps dump file
+def parse_dump(file: str):
+    """Parse a lammps dump file
 
-        Returns:
-            dict: Dictionary with data in dump
-        """
-        entries = []
-        with open(file, 'r') as fp:
-            cache = []
-            for line in fp:
-                if line.startswith("ITEM: TIMESTEP"):
-                    if len(cache) > 0:
-                        entry = {'timestep': int(cache[1]),
-                                 'natoms': int(cache[3]), 'data': []}
-                        matrix = np.zeros((3, 3))
-                        bounds = np.array([[float(i) for i in row.split(' ')]
-                                           for row in cache[5:8]])
-                        for i, bound in enumerate(bounds):
-                            matrix[i, i] = bound[0] - bound[1]
-                        if bounds.shape == (3, 3):  # tilts
-                            matrix[1, 0] = bounds[0, 2]
-                            matrix[2, 0] = bounds[1, 2]
-                            matrix[2, 1] = bounds[2, 2]
-                        entry['lattice'] = Lattice(matrix).as_dict()
-                        keys = cache[8].replace("ITEM: ATOMS", "").split()
-                        entry['data'] = [
-                            {key: literal_eval(value) for key, value
-                             in zip(keys, values.split(' '))}
-                            for values in cache[9:]]
-                        entries.append(entry)
-                    cache = [line]
-                else:
-                    cache.append(line)
-        return entries
+    Args:
+        file (str):
+            file path to lammps dump file
+
+    Returns:
+        dict: Dictionary with data in dump
+    """
+    entries = []
+    with zopen(file, 'r') as fp:
+        cache = []
+        for line in fp:
+            if line.startswith("ITEM: TIMESTEP"):
+                if len(cache) > 0:
+                    entry = {'timestep': int(cache[1]),
+                             'natoms': int(cache[3]), 'data': []}
+                    matrix = np.zeros((3, 3))
+                    bounds = np.array([[float(i) for i in row.split(' ')]
+                                       for row in cache[5:8]])
+                    for i, bound in enumerate(bounds):
+                        matrix[i, i] = bound[0] - bound[1]
+                    if bounds.shape == (3, 3):  # tilts
+                        matrix[1, 0] = bounds[0, 2]
+                        matrix[2, 0] = bounds[1, 2]
+                        matrix[2, 1] = bounds[2, 2]
+                    entry['lattice'] = Lattice(matrix).as_dict()
+                    keys = cache[8].replace("ITEM: ATOMS", "").split()
+                    entry['data'] = [
+                        {key: literal_eval(value) for key, value
+                         in zip(keys, values.split(' '))}
+                        for values in cache[9:]]
+                    entries.append(entry)
+                cache = [line]
+            else:
+                cache.append(line)
+    return entries
