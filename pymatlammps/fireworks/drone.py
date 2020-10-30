@@ -1,5 +1,7 @@
 import os
 from datetime import datetime
+from itertools import chain
+from glob import glob
 from monty.io import zopen
 from monty.json import jsanitize
 from pymatgen import Composition, Structure
@@ -24,13 +26,13 @@ class PMLDrone(AbstractDrone):
             "input", "output", "state"
         },
         "input": {'structure', 'potential_params', 'pml_methods',
-                  'pylammps_init_kwargs', 'additional_commands'},
+                  'pylammps_init_kwargs', 'pylammps_setup_commands'},
         "output": {'structure', 'energy', 'energy_per_atom', 'density',
                    'log', 'dumps'},
     }
 
     def __init__(self, inputs: dict = None, outputs: dict = None,
-                 log_name: str ='log.lammps', dump_names: list = None):
+                 log_name: str ='log.lammps', dump_patterns: list = None):
         """Initialize drone
 
         Args:
@@ -38,17 +40,17 @@ class PMLDrone(AbstractDrone):
                 dictionary with input to pymatlammps with schema specified
                 above.
             outputs (dict)
-                dictionary with output from pymatlammps with schema specified
-                above.
+                dictionary with output from pymatlammps, only structure and
+                energy need to be included.
             log_name (str):
                 file name of lammps log
-            dump_names (list of str):
-                list of names of dump files written by lammps
+            dump_patterns (list of str):
+                list of glob patterns of dump files written by lammps
         """
-        self.input = inputs
-        self.output = outputs
+        self.inputs = inputs
+        self.outputs = outputs
         self.log_name = log_name
-        self.dump_names = dump_names or []
+        self.dump_names = dump_patterns or []
 
     def assimilate(self, path: str) -> dict:
         """Assimilate output from a pymatlammps run.
@@ -60,8 +62,9 @@ class PMLDrone(AbstractDrone):
         with zopen(log['path'], 'r') as fp:
             log['contents'] = [line for line in fp.readlines()]
 
-        dumps = [parse_dump(os.path.join(path, fname))
-                 for fname in self.dump_names]
+        dump_files = chain.from_iterable([glob(os.path.join(path, pattern))
+                                          for pattern in self.dump_names])
+        dumps = {file: parse_dump(file) for file in dump_files}
         doc = self.generate_doc(path, log, dumps)
 
         # maybe check schema is good?
@@ -75,8 +78,8 @@ class PMLDrone(AbstractDrone):
                 path to run directory
             log (dict):
                 dict with path and list of all read lines in lammps log file.
-            dumps (list):
-                list of parse lammps dump files.
+            dumps (dict):
+                dict of parse lammps dump files.
         Returns:
             dict
         """
@@ -86,11 +89,11 @@ class PMLDrone(AbstractDrone):
                              'version': PMLDrone.__version__}
             doc['completed_at'] = str(datetime.fromtimestamp(os.path.getmtime(log['path'])))
             doc['dir_name'] = os.path.abspath(dir_name)
-            doc['input'] = jsanitize(self.input)
-            doc['output'] = jsanitize(self.output)
+            doc['input'] = jsanitize(self.inputs)
+            doc['output'] = jsanitize(self.outputs)
             doc['output']['log'] = log
             doc['output']['dumps'] = jsanitize(dumps)
-            final_structure = self.output['structure']
+            final_structure = self.outputs['structure']
             composition = final_structure.composition
             doc['output']['energy_per_atom'] = doc['output']['energy']/len(final_structure)
             doc['output']['density'] = final_structure.density
@@ -106,22 +109,23 @@ class PMLDrone(AbstractDrone):
             logger.error(traceback.format_exc())
             logger.error(f"Error in {os.path.abspath(dir_name)}.\n"
                          f"{traceback.format_exc()}")
-            return None
+            return
 
+        doc['state'] = 'successful'
         return doc
 
     def get_valid_paths(self, path: str):  # what's the point in this case?
         return [path]
 
     def as_dict(self) -> dict:
-        d = {'input': jsanitize(self.input),
-             'output': jsanitize(self.output),
+        d = {'inputs': jsanitize(self.inputs),
+             'outputs': jsanitize(self.outputs),
              'log_name': self.log_name,
              'dump_names': self.dump_names}
         return d
 
     @classmethod
     def from_dict(cls, d: dict):
-        d['input']['structure'] = Structure.from_dict(d['input']['structure'])
-        d['output']['structure'] = Structure.from_dict(d['input']['structure'])
+        d['inputs']['structure'] = Structure.from_dict(d['input']['structure'])
+        d['outputs']['structure'] = Structure.from_dict(d['input']['structure'])
         return cls(**d)

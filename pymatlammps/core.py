@@ -211,7 +211,7 @@ class PyMatLammps(PyLammps):
                         max_iter=1000, max_eval=1000, max_cycles=100,
                         algo='cg', algo_params: dict = None,
                         dump_nstep: int = 1,
-                        dump_file: str = 'structopt.dump'):
+                        dump_file: str = 'volumeopt.dump'):
         """Optimize lammps box volume (pymatgen Lattice) only.
 
         Sites are scaled accordingly such that the optimized volume domain
