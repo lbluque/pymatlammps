@@ -29,15 +29,15 @@ class PMLDrone(AbstractDrone):
                    'log', 'dumps'},
     }
 
-    def __init__(self, input=None, output=None, log_name='log.lammps',
-                 dump_names=None):
+    def __init__(self, inputs: dict = None, outputs: dict = None,
+                 log_name: str ='log.lammps', dump_names: list = None):
         """Initialize drone
 
         Args:
-            input (dict):
+            inputs (dict):
                 dictionary with input to pymatlammps with schema specified
                 above.
-            output (dict)
+            outputs (dict)
                 dictionary with output from pymatlammps with schema specified
                 above.
             log_name (str):
@@ -45,12 +45,12 @@ class PMLDrone(AbstractDrone):
             dump_names (list of str):
                 list of names of dump files written by lammps
         """
-        self.input = input
-        self.output = output
+        self.input = inputs
+        self.output = outputs
         self.log_name = log_name
         self.dump_names = dump_names or []
 
-    def assimilate(self, path):
+    def assimilate(self, path: str) -> dict:
         """Assimilate output from a pymatlammps run.
 
         Basically just copy log file and parse dump files.
@@ -67,7 +67,7 @@ class PMLDrone(AbstractDrone):
         # maybe check schema is good?
         return doc
 
-    def generate_doc(self, dir_name, log, dumps):
+    def generate_doc(self, dir_name: str, log: dict, dumps: list) -> dict:
         """Generate doc for db insertion
 
         Args:
@@ -110,7 +110,7 @@ class PMLDrone(AbstractDrone):
 
         return doc
 
-    def get_valid_paths(self, path):  # what's the point in this case?
+    def get_valid_paths(self, path: str):  # what's the point in this case?
         return [path]
 
     def as_dict(self) -> dict:
