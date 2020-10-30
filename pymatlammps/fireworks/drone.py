@@ -32,7 +32,8 @@ class PMLDrone(AbstractDrone):
     }
 
     def __init__(self, inputs: dict = None, outputs: dict = None,
-                 log_name: str ='log.lammps', dump_patterns: list = None):
+                 log_name: str ='log.lammps', dump_patterns: list = None,
+                 additional_fields: dict = None):
         """Initialize drone
 
         Args:
@@ -46,11 +47,14 @@ class PMLDrone(AbstractDrone):
                 file name of lammps log
             dump_patterns (list of str):
                 list of glob patterns of dump files written by lammps
+            additional_fields (dict):
+                dictionary of additional fields to add to output document
         """
         self.inputs = inputs
         self.outputs = outputs
         self.log_name = log_name
         self.dump_names = dump_patterns or []
+        self.additional_fields = additional_fields or {}
 
     def assimilate(self, path: str) -> dict:
         """Assimilate output from a pymatlammps run.
@@ -83,7 +87,7 @@ class PMLDrone(AbstractDrone):
         Returns:
             dict
         """
-        doc = {}
+        doc = jsanitize(self.additional_fields)
         try:
             doc['schema'] = {'code': 'pymatlammps',
                              'version': PMLDrone.__version__}

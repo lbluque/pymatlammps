@@ -52,8 +52,8 @@ class RunStructurePML(FiretaskBase):
     def run_task(self, fw_spec):
         """Setup, run and write output for a structure optimization."""
         pml = PyMatLammps(**self.get('init_kwargs'))
-        pml.set_structure(self['structure'])
         pml.lmp.commands_list(self.get('additional_setup_commands', []))
+        pml.set_structure(self['structure'])
 
         dump_patterns = ['*.dump*']
         for method in self['pml_methods']:
@@ -81,7 +81,6 @@ class RunStructurePML(FiretaskBase):
             'energy': final_energy
         }
         # only return if this is going to be set into the parse task,
-        # prob should
         return FWAction(update_spec={'inputs': inputs, 'outputs': outputs,
                                      'dump_file_patterns': dump_patterns})
 
@@ -108,10 +107,12 @@ class PMLtoDB(FiretaskBase):
             Supports env_chk. Default: write data to JSON file.
         dump_file_patterns (list):
             list of str for dump file name patterns used to glob dump files.
-
+        additional_fields (dict):
+            dict of additional fields to add
     """
     required_params = ['inputs', 'outputs']
-    optimal_params = ['calc_dir', 'calc_loc', 'db_file', 'dump_file_patterns']
+    optimal_params = ['calc_dir', 'calc_loc', 'db_file', 'dump_file_patterns',
+                      'additional_fields']
 
     def run_task(self, fw_spec):
         calc_dir = os.getcwd()

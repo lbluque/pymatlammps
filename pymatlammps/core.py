@@ -129,11 +129,13 @@ class PyMatLammps(PyLammps):
             self.uncompute('peatom')
             self.undump('coord-relax')
 
-    def optimize_structure(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
-                           max_iter=1000, max_eval=1000, max_cycles=100,
-                           algo='cg', algo_params: dict = None,
-                           box_fix_params: dict = None, dump_nstep=1,
-                           dump_file='structopt.dump'):
+    def optimize_structure(self, box_tol: float = 1E-8,
+                           energy_tol: float = 0.0, force_tol: float = 1E-10,
+                           max_iter: int = 1000, max_eval: int = 1000,
+                           max_cycles: int = 100, algo: str = 'cg',
+                           algo_params: dict = None,
+                           box_fix_params: dict = None, dump_nstep: int = 1,
+                           dump_file: str ='structopt.dump'):
         """Perform a structure optimization using lammps minimize.
 
         This will perform a series of cycles restarting the minimization for
@@ -159,7 +161,8 @@ class PyMatLammps(PyLammps):
                 maximum no. of iterations
             max_eval (int):
                 maximum number of force evaluations
-            max_cycles:
+            max_cycles (int):
+                maximum cycles to reset and run minimization
             algo (str):
                 minimization algorithm. See for details:
                 https://lammps.sandia.gov/doc/min_style.html
@@ -207,10 +210,11 @@ class PyMatLammps(PyLammps):
             raise RuntimeWarning("Structure optimization failed to converge "
                                  "to the given tolerances.")
 
-    def optimize_volume(self, box_tol=1E-8, energy_tol=0.0, force_tol=1E-10,
-                        max_iter=1000, max_eval=1000, max_cycles=100,
-                        algo='cg', algo_params: dict = None,
-                        dump_nstep: int = 1,
+    def optimize_volume(self, box_tol: float = 1E-8,
+                        energy_tol: float = 0.0, force_tol: float = 1E-10,
+                        max_iter: int = 1000, max_eval: int = 1000,
+                        max_cycles: int = 100, algo: str = 'cg',
+                        algo_params: dict = None, dump_nstep: int = 1,
                         dump_file: str = 'volumeopt.dump'):
         """Optimize lammps box volume (pymatgen Lattice) only.
 
@@ -223,7 +227,7 @@ class PyMatLammps(PyLammps):
         Args:
             box_tol (float):
                 tolerance between changes of box (lattice) between successive
-                minimizations
+                minimization.
             energy_tol (float):
                 energy stopping tolerance
             force_tol (float):
@@ -232,7 +236,8 @@ class PyMatLammps(PyLammps):
                 maximum no. of iterations
             max_eval (int):
                 maximum number of force evaluations
-            max_cycles:
+            max_cycles (int):
+                maximum cycles to reset and run minimization
             algo (str):
                 minimization algorithm. See for details:
                 https://lammps.sandia.gov/doc/min_style.html
