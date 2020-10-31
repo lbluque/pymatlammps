@@ -5,7 +5,7 @@ Simple Fireworks using pymatlammps
 from fireworks import Firework
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from pymatgen import Structure
-from pymatlammps.fireworks.firetasks import RunStructurePML, PMLtoDB
+from pymatlammps.atomate.firetasks import RunStructurePML, PMLtoDB
 
 
 class OptimizeStructureFW(Firework):
@@ -24,15 +24,15 @@ class OptimizeStructureFW(Firework):
         Args:
             structure (Structure):
                 input structure
-            potential_params (dict):
-                dictionary specifying the type of lammps potential to be used,
+            potential_params (dict or list of dicts):
+                dictionary specifying the style of lammps potential to be used,
                 and any additional parameters to set the specific potential.
                 At a minimum the following needs to be included:
-                {'type': style of lammps potential (ie pair, bond, angle, etc
-                 'coeffs': input to corresponding pymatlammps setup function}
-                 Currently only pair potentials supported. And no modify
-                 commands but all easily extendable in PyMatLammps class when
-                 needed.
+                {'type': type of lammps potential (ie pair, bond, angle, etc)
+                 'style', 'coeffs'}
+                 style and coeffs see input to corresponding pymatlammps function
+                 Currently only pair potentials supported. And no modify commands
+                 but all easily extendable in PyMatLammps class if needed.
             optim_params (dict):
                 keyword arguments for PyMatLammps.optimize_structure, see the
                 method doctring for more information.
@@ -48,7 +48,7 @@ class OptimizeStructureFW(Firework):
             db_file (str):
                 Path to file specifying db credentials to place output parsing.
             parents ([Firework]):
-                parent fireworks
+                parent atomate
         """
         optim_params = optim_params or {}
         pml_methods = [
@@ -87,15 +87,15 @@ class OptimizeVolumeFW(Firework):
         Args:
             structure (Structure):
                 input structure
-            potential_params (dict):
-                dictionary specifying the type of lammps potential to be used,
+            potential_params (dict or list of dicts):
+                dictionary specifying the style of lammps potential to be used,
                 and any additional parameters to set the specific potential.
                 At a minimum the following needs to be included:
-                {'type': style of lammps potential (ie pair, bond, angle, etc
-                 'coeffs': input to corresponding pymatlammps setup function}
-                 Currently only pair potentials supported. And no modify
-                 commands but all easily extendable in PyMatLammps class when
-                 needed.
+                {'type': type of lammps potential (ie pair, bond, angle, etc)
+                 'style', 'coeffs'}
+                 style and coeffs see input to corresponding pymatlammps function
+                 Currently only pair potentials supported. And no modify commands
+                 but all easily extendable in PyMatLammps class if needed.
             optim_params
                 keyword arguments for PyMatLammps.optimize_volume, see the
                 method doctring for more information.
@@ -111,7 +111,7 @@ class OptimizeVolumeFW(Firework):
             db_file (str):
                 Path to file specifying db credentials to place output parsing.
             parents ([Firework]):
-                parent fireworks
+                parent atomate
         """
         optim_params = optim_params or {}
         pml_methods = [

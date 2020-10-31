@@ -17,8 +17,9 @@ class PMLCalcDb(CalcDb):
     
     def __init__(self, host: str ='localhost', port: int =27017,
                  database: str ='pymatlammps', collection: str ='tasks',
-                 **kwargs):
-        super().__init__(host, port, database, collection, **kwargs)
+                 user: str = None, password: str = None, **kwargs):
+        super().__init__(host, port, database, collection, user, password,
+                         **kwargs)
 
     def build_indexes(self, indexes: list = None, background: bool = True):
         """Build database indexes
