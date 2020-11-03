@@ -277,9 +277,10 @@ class PyMatLammps(PyLammps):
         self.pair_style(*style)
         for coef in coeffs:
             try:
-                self.pair_coeff(self.atom_types[get_el_sp(coef[0])],
-                                self.atom_types[get_el_sp(coef[1])],
-                                *coef[2:])
+                # lammps only takes sorted atom types...
+                atom_types = sorted([self.atom_types[get_el_sp(coef[0])],
+                                     self.atom_types[get_el_sp(coef[1])]])
+                self.pair_coeff(*atom_types, *coef[2:])
             except ValueError:
                 self.pair_coeff(*coeffs)
 
