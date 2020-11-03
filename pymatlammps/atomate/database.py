@@ -16,7 +16,7 @@ class PMLCalcDb(CalcDb):
     """
     
     def __init__(self, host: str ='localhost', port: int =27017,
-                 database: str ='pymatlammps', collection: str ='tasks',
+                 database: str ='lammps', collection: str ='tasks',
                  user: str = None, password: str = None, **kwargs):
         super().__init__(host, port, database, collection, user, password,
                          **kwargs)

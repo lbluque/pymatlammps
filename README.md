@@ -25,4 +25,5 @@ relaxed_structure = pml.get_structure()
 ```
 
 Additionally, some very minimal implementations of classes to launch calcs
-using [Fireworks](https://materialsproject.github.io/fireworks).
+using [atomate](https://atomate.org/index.html) + 
+[Fireworks](https://materialsproject.github.io/fireworks).

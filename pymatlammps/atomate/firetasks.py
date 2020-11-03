@@ -164,7 +164,12 @@ class PMLtoDB(FiretaskBase):
                          additional_fields=additional_fields)
 
         task_doc = drone.assimilate(calc_dir)
+        # Check for additional keys to set based on the fw_spec
+        if self.get("fw_spec_field"):
+            task_doc.update(fw_spec[self.get("fw_spec_field")])
+
         db_file = env_chk(self.get('db_file'), fw_spec)
+
         # db insertion
         if not db_file:
             with open('task.json', 'w') as fp:
