@@ -93,8 +93,8 @@ class PMLDrone(AbstractDrone):
                              'version': PMLDrone.__version__}
             doc['completed_at'] = str(datetime.fromtimestamp(os.path.getmtime(log['path'])))
             doc['dir_name'] = os.path.abspath(dir_name)
-            doc['input'] = jsanitize(self.inputs)
-            doc['output'] = jsanitize(self.outputs)
+            doc['input'] = jsanitize(self.inputs, strict=True)
+            doc['output'] = jsanitize(self.outputs, strict=True)
             doc['output']['log'] = log
             doc['output']['dumps'] = jsanitize(dumps)
             final_structure = self.outputs['structure']
