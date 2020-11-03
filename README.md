@@ -26,4 +26,20 @@ relaxed_structure = pml.get_structure()
 
 Additionally, some very minimal implementations of classes to launch calcs
 using [atomate](https://atomate.org/index.html) + 
-[Fireworks](https://materialsproject.github.io/fireworks).
+[Fireworks](https://materialsproject.github.io/fireworks):
+
+```python
+from pymatgen import Structure, Lattice
+from fireworks import Workflow, LaunchPad
+from pymatlammps.atomate import OptimizeStructureFW
+
+structure = Structure.from_spacegroup('Fm-3m', Lattice.cubic(2.0),
+                                      ['Au'], [[0, 0, 0]])
+
+coeffs = [['Au', 'Au', 1.2, 1.5, 3.0]]
+pot_params = {'type': 'pair', 'style': ['lj/cut', 3.0], 'coeffs': coeffs}
+wf = Workflow([OptimizeStructureFW(structure, pot_params)])
+
+launchpad = LaunchPad.auto_load()
+launchpad.add_wf(wf)
+```
