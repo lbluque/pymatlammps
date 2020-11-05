@@ -71,7 +71,9 @@ class RunStructurePML(FiretaskBase):
         }
         for params in self['potential_params']:
             try:
-                set_potential[params['type']](params['style'], *params['coeffs'])
+                set_potential[params['type']](params['style'],
+                                              params['coeffs'],
+                                              mods=params.get('mods'))
             except TypeError:
                 raise NotImplementedError(
                     "Setting potential style {params['style']} has not been "

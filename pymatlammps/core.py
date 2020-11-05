@@ -261,7 +261,8 @@ class PyMatLammps(PyLammps):
         for i, coords in enumerate(structure.cart_coords):
             self.atoms[i].position = coords
 
-    def set_pair_potential(self, style: list, *coeffs: list):
+    def set_pair_potential(self, style: list, coeffs: list, mods: list = None,
+                           **kwargs):
         """Set a pair style potential for lammps.
 
         Allows species/elements instead of lammps types to select species.
@@ -273,8 +274,18 @@ class PyMatLammps(PyLammps):
                 lammps pair coefficients as list of lists. Each list can
                 include two pymatgen Element/Species included in the system
                 instead of the standard lammps input.
+            mods (list):
+                list of lists allowed pair modify commands.
         """
+        coeffs = coeffs if isinstance(coeffs[0], list) else [coeffs]
+
+        if mods is not None and not isinstance(mods[0], list):
+            mods = [mods]
+        else:
+            mods = []
+
         self.pair_style(*style)
+
         for coef in coeffs:
             try:
                 # lammps only takes sorted atom types...
@@ -283,6 +294,8 @@ class PyMatLammps(PyLammps):
                 self.pair_coeff(*atom_types, *coef[2:])
             except ValueError:
                 self.pair_coeff(*coeffs)
+        for mod in mods:
+            self.pair_modify(*mod)
 
     def set_structure(self, structure: Structure, sort=True):
         """Setup a lammps simulation domain from a pymatgen structure
