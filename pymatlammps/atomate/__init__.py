@@ -1,6 +1,6 @@
 """Fireworks etc for using PyMatLammps"""
 
-from .fireworks import OptimizeStructureFW, OptimizeVolumeFW
+from .fireworks import StaticFW, OptimizeStructureFW, OptimizeVolumeFW
 
 
-__all__ = ['OptimizeStructureFW', 'OptimizeVolumeFW']
+__all__ = ['StaticFW', 'OptimizeStructureFW', 'OptimizeVolumeFW']
