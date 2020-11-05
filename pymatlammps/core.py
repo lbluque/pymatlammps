@@ -362,7 +362,7 @@ class PyMatLammps(PyLammps):
             structure (Structure)
         """
         for site in structure:
-            site.coords += 1E-15  # force small negatives to positive
+            site.coords += 1E-14  # force small negatives to positive
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
 
