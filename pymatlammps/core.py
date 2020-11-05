@@ -48,7 +48,7 @@ class PyMatLammps(PyLammps):
         "variable fy atom fy",
         "variable fz atom fz",
         "variable pe equal pe",
-        "neigh_modify every 1 delay 0 check yes"
+        "neigh_modify every 1 delay 5 check yes"
     ]
 
     def __init__(self, *args, **kwargs):
