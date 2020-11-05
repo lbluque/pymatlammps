@@ -7,6 +7,8 @@ from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from pymatgen import Structure
 from pymatlammps.atomate.firetasks import RunStructurePML, PMLtoDB
 
+DB_FILE = '>>db_file<<'  # None
+
 
 class StaticFW(Firework):
     """Compute the potential energy for a given structure.
@@ -14,9 +16,10 @@ class StaticFW(Firework):
     Static calculation, nothing is moved.
     """
     def __init__(self, structure: Structure, potential_params: dict,
-                 init_kwargs: dict = None, additional_setup_commands: list = None,
+                 init_kwargs: dict = None,
+                 additional_setup_commands: list = None,
                  name: str = 'PML static calculation',
-                 db_file: str = None, parents: list = None, **kwargs):
+                 db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
         Args:
             structure (Structure):
@@ -70,7 +73,7 @@ class OptimizeStructureFW(Firework):
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
                  name: str = 'PML structure optimization',
-                 db_file: str = None, parents: list = None, **kwargs):
+                 db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
         Args:
             structure (Structure):
@@ -133,7 +136,7 @@ class OptimizeVolumeFW(Firework):
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
                  name: str = 'PML volume optimization',
-                 db_file: str = None, parents: list = None, **kwargs):
+                 db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
         Args:
             structure (Structure):
