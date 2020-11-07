@@ -87,7 +87,7 @@ class PyMatLammps(PyLammps):
 
     def optimize_site_coords(self, energy_tol=0.0, force_tol=1E-10,
                              max_iter=5000, max_eval=5000, algo='cg',
-                             algo_params: dict = None, dump_nstep=1,
+                             algo_params: dict = None, dump_nstep=10,
                              dump_file='coordopt.dump'):
         """Optimize structure site coordinates using lammps minimize.
 
