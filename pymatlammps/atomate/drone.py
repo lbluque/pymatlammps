@@ -56,25 +56,39 @@ class PMLDrone(AbstractDrone):
         self.dump_names = dump_patterns or []
         self.additional_fields = additional_fields or {}
 
-    def assimilate(self, path: str) -> dict:
+    def assimilate(self, path: str, parse_dump_files: bool = False) -> dict:
         """Assimilate output from a pymatlammps run.
 
         Basically just copy log file and parse dump files.
+
+        Args:
+            path (str):
+                path to calc files
+            parse_dump_files (bool): optional
+                if true will parse dump files and enter the into doc
+
+        Returns:
+
         """
 
         log = {'path': os.path.join(path, self.log_name)}
         with zopen(log['path'], 'r') as fp:
             log['contents'] = [line for line in fp.readlines()]
 
+        # TODO think about storing dump it in chunks not in entry
         dump_files = chain.from_iterable([glob(os.path.join(path, pattern))
                                           for pattern in self.dump_names])
-        dumps = {file: parse_dump(file) for file in dump_files}
+        if parse_dump_files:
+            dumps = {file: parse_dump(file) for file in dump_files}
+        else:
+            dumps = {file: None for file in dump_files}
+
         doc = self.generate_doc(path, log, dumps)
 
         # maybe check schema is good?
         return doc
 
-    def generate_doc(self, dir_name: str, log: dict, dumps: list) -> dict:
+    def generate_doc(self, dir_name: str, log: dict, dumps: dict) -> dict:
         """Generate doc for db insertion
 
         Args:

@@ -112,6 +112,7 @@ class RunStructurePML(FiretaskBase):
                                      'dump_file_patterns': dump_patterns})
 
 
+#TODO add spec with flag to parse dumps or not in drone
 @explicit_serialize
 class PMLtoDB(FiretaskBase):
     """
