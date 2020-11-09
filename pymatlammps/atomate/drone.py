@@ -73,7 +73,7 @@ class PMLDrone(AbstractDrone):
 
         log = {'path': os.path.join(path, self.log_name)}
         with zopen(log['path'], 'r') as fp:
-            log['contents'] = [line for line in fp.readlines()]
+            log['contents'] = fp.read()
 
         # TODO think about storing dump it in chunks not in entry
         dump_files = chain.from_iterable([glob(os.path.join(path, pattern))

@@ -7,7 +7,7 @@ from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from pymatgen import Structure
 from pymatlammps.atomate.firetasks import RunStructurePML, PMLtoDB
 
-DB_FILE = '>>db_file<<'  # None
+DB_FILE = None  # '>>db_file<<'
 
 
 class StaticFW(Firework):
