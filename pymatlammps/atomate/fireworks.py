@@ -18,6 +18,7 @@ class StaticFW(Firework):
     def __init__(self, structure: Structure, potential_params: dict,
                  init_kwargs: dict = None,
                  additional_setup_commands: list = None,
+                 parse_dump_files: bool = True,
                  name: str = 'PML static calculation',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -40,6 +41,8 @@ class StaticFW(Firework):
             additional_setup_commands (list):
                 list of lammps commands as str to be run before setting up the
                 simulation domain (ie region, box, atoms)
+            parse_dump_files (bool):
+                If true will parse dump files.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -55,7 +58,8 @@ class StaticFW(Firework):
                 additional_setup_commands=additional_setup_commands
             ),
             PassCalcLocs(name=name),
-            PMLtoDB(db_file=db_file, additional_fields={"task_label": name})
+            PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
+                    additional_fields={"task_label": name})
         ]
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
@@ -72,6 +76,7 @@ class OptimizeStructureFW(Firework):
     def __init__(self, structure: Structure, potential_params: dict,
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
+                 parse_dump_files: bool = False,
                  name: str = 'PML structure optimization',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -97,6 +102,8 @@ class OptimizeStructureFW(Firework):
             additional_setup_commands (list):
                 list of lammps commands as str to be run before setting up the
                 simulation domain (ie region, box, atoms)
+            parse_dump_files (bool):
+                If true will parse dump files.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -117,7 +124,8 @@ class OptimizeStructureFW(Firework):
                 additional_setup_commands=additional_setup_commands
             ),
             PassCalcLocs(name=name),
-            PMLtoDB(db_file=db_file, additional_fields={"task_label": name})
+            PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
+                    additional_fields={"task_label": name})
         ]
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
@@ -135,6 +143,7 @@ class OptimizeVolumeFW(Firework):
     def __init__(self, structure: Structure, potential_params: dict,
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
+                 parse_dump_files: bool = False,
                  name: str = 'PML volume optimization',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -160,6 +169,8 @@ class OptimizeVolumeFW(Firework):
             additional_setup_commands (list):
                 list of lammps commands as str to be run before setting up the
                 simulation domain (ie region, box, atoms)
+            parse_dump_files (bool):
+                If true will parse dump files.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -180,7 +191,8 @@ class OptimizeVolumeFW(Firework):
                 additional_setup_commands=additional_setup_commands
             ),
             PassCalcLocs(name=name),
-            PMLtoDB(db_file=db_file, additional_fields={"task_label": name})
+            PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
+                    additional_fields={"task_label": name})
         ]
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",

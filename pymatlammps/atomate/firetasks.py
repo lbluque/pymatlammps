@@ -112,7 +112,6 @@ class RunStructurePML(FiretaskBase):
                                      'dump_file_patterns': dump_patterns})
 
 
-#TODO add spec with flag to parse dumps or not in drone
 @explicit_serialize
 class PMLtoDB(FiretaskBase):
     """
@@ -137,11 +136,14 @@ class PMLtoDB(FiretaskBase):
             Supports env_chk. Default: write data to JSON file.
         dump_file_patterns (list):
             list of str for dump file name patterns used to glob dump files.
+        parse_dump_files (bool):
+            If true will parse dump files.
         additional_fields (dict):
             dict of additional fields to add
     """
     optional_params = ['inputs', 'outputs', 'calc_dir', 'calc_loc', 'db_file',
-                       'dump_file_patterns', 'additional_fields']
+                       'dump_file_patterns', 'additional_fields',
+                       'parse_dump_files']
 
     def run_task(self, fw_spec):
         calc_dir = os.getcwd()
@@ -166,7 +168,8 @@ class PMLtoDB(FiretaskBase):
                          dump_patterns=fw_spec['dump_file_patterns'],
                          additional_fields=additional_fields)
 
-        task_doc = drone.assimilate(calc_dir)
+        task_doc = drone.assimilate(calc_dir,
+                                    parse_dump_files=self.get('parse_dump_files', False))
         # Check for additional keys to set based on the fw_spec
         if self.get("fw_spec_field"):
             task_doc.update(fw_spec[self.get("fw_spec_field")])
