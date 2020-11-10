@@ -2,6 +2,8 @@
 Simple Fireworks using pymatlammps
 """
 
+__author__ = "Luis Barroso-Luque"
+
 from fireworks import Firework
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from pymatgen import Structure

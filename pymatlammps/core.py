@@ -1,5 +1,7 @@
 """Simple class to interface PyLammps and pymatgen"""
 
+__author__ = "Luis Barroso-Luque"
+
 import warnings
 from ast import literal_eval
 from collections import namedtuple
@@ -9,9 +11,6 @@ from monty.io import zopen
 from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
 from pymatgen import SymmOp, Structure, Lattice, Species, Element
-
-
-__author__ = "Luis Barroso-Luque"
 
 
 class PyMatLammps(PyLammps):

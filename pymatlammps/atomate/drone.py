@@ -1,3 +1,7 @@
+"""A drone for assimilated pymatlammps generated data."""
+
+__author__ = "Luis Barroso-Luque"
+
 import os
 from datetime import datetime
 from itertools import chain

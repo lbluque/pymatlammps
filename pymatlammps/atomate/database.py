@@ -1,7 +1,9 @@
 """
 Minimal CalcDb class to stores objects in database.
-Adapted from atomate
+Adapted from atomate.
 """
+
+__author__ = "Luis Barroso-Luque"
 
 from pymongo import ASCENDING, DESCENDING
 from atomate.utils.database import CalcDb

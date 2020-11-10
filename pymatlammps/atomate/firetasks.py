@@ -2,6 +2,8 @@
 Minimal firetasks for running lammps with pymatlammps.
 """
 
+__author__ = "Luis Barroso-Luque"
+
 import os
 import json
 from fireworks import FiretaskBase, FWAction, explicit_serialize
@@ -76,7 +78,7 @@ class RunStructurePML(FiretaskBase):
                                               mods=params.get('mods'))
             except TypeError:
                 raise NotImplementedError(
-                    "Setting potential style {params['style']} has not been "
+                    f"Setting potential style {params['style']} has not been "
                     "implemented.")
             except KeyError:
                 raise RuntimeError(
