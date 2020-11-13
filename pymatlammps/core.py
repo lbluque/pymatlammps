@@ -292,7 +292,7 @@ class PyMatLammps(PyLammps):
                                      self.atom_types[get_el_sp(coef[1])]])
                 self.pair_coeff(*atom_types, *coef[2:])
             except ValueError:
-                self.pair_coeff(*coeffs)
+                self.pair_coeff(*coef)
         for mod in mods:
             self.pair_modify(*mod)
 
@@ -321,7 +321,8 @@ class PyMatLammps(PyLammps):
 
         # for now assume bulk structures only
         self.boundary('p', 'p', 'p')
-        symmop = self.create_region_from_lattice(structure.lattice, 'unit-cell')
+        symmop = self.create_region_from_lattice(
+            structure.lattice, 'unit-cell')
         lmp_structure = structure.copy()
         lmp_structure.apply_operation(symmop)
         self.domain = lmp_structure
@@ -333,7 +334,11 @@ class PyMatLammps(PyLammps):
         self.create_atoms_from_structure(lmp_structure)
 
         for sp, i in self.atom_types.items():
-            self.mass(i, float(sp.atomic_mass))
+            try:
+                atomic_mass = sp.atomic_mass
+            except AttributeError:
+                atomic_mass = 1.0
+            self.mass(i, float(atomic_mass))
             if charge:
                 self.set('type', i, 'charge', getattr(sp, 'oxi_state', 0))
 
