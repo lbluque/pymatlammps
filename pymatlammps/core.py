@@ -210,7 +210,7 @@ class PyMatLammps(PyLammps):
             raise RuntimeWarning("Structure optimization failed to converge "
                                  "to the given tolerances.")
 
-    def optimize_volume(self, tol: float = 1E-8, max_iter: int = 5000,
+    def optimize_volume(self, box_tol: float = 1E-10, max_iter: int = 5000,
                         algo: str = 'Bounded', algo_params: dict = None,
                         dump_nstep: int = 1,
                         dump_file: str = 'volumeopt.dump'):
@@ -253,7 +253,7 @@ class PyMatLammps(PyLammps):
 
         algo_params = algo_params or {'bounds': (0.001, 20 * self.get_structure().volume)}
         res = minimize_scalar(potential_energy, method=algo,
-                              options={'maxiter': max_iter, 'xatol': tol},
+                              options={'maxiter': max_iter, 'xatol': box_tol},
                               **algo_params)
 
         if not res['success']:
