@@ -7,6 +7,7 @@ from ast import literal_eval
 from collections import namedtuple
 import numpy as np
 from numpy.linalg import norm, det, solve
+from scipy.optimize import minimize_scalar
 from monty.io import zopen
 from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
@@ -209,13 +210,11 @@ class PyMatLammps(PyLammps):
             raise RuntimeWarning("Structure optimization failed to converge "
                                  "to the given tolerances.")
 
-    def optimize_volume(self, box_tol: float = 1E-8,
-                        energy_tol: float = 0.0, force_tol: float = 1E-10,
-                        max_iter: int = 1000, max_eval: int = 1000,
-                        max_cycles: int = 100, algo: str = 'cg',
-                        algo_params: dict = None, dump_nstep: int = 1,
+    def optimize_volume(self, tol: float = 1E-8, max_iter: int = 5000,
+                        algo: str = 'Bounded', algo_params: dict = None,
+                        dump_nstep: int = 1,
                         dump_file: str = 'volumeopt.dump'):
-        """Optimize lammps box volume (pymatgen Lattice) only.
+        """Optimize lammps box volume using scipy (pymatgen Lattice) only.
 
         Sites are scaled accordingly such that the optimized volume domain
         is just a scaled version of the input.
@@ -224,41 +223,60 @@ class PyMatLammps(PyLammps):
         relaxations and reset sites to original locations, scaled accordingly.
 
         Args:
-            box_tol (float):
+            tol (float):
                 tolerance between changes of box (lattice) between successive
                 minimization.
-            energy_tol (float):
-                energy stopping tolerance
-            force_tol (float):
-                force stopping tolerance
             max_iter (int):
                 maximum no. of iterations
-            max_eval (int):
-                maximum number of force evaluations
-            max_cycles (int):
-                maximum cycles to reset and run minimization
             algo (str):
-                minimization algorithm. See for details:
-                https://lammps.sandia.gov/doc/min_style.html
+                minimization algorithm.
+                See details:
+                minimize_scalar from scipy.optimize
             algo_params (dict):
                 parameters to set for the minimization algorithm.
-                https://lammps.sandia.gov/doc/fix_box_relax.html
+                minimize_scalar from scipy.optimize
             dump_nstep (int):
                 dump atom positions every nsteps.
             dump_file (str):
                 dump file name.
         """
-        self.optimize_structure(box_tol, energy_tol, force_tol, max_iter,
-                                max_eval, max_cycles, algo, algo_params,
-                                box_fix_params={'iso': 0.0},
-                                dump_nstep=dump_nstep, dump_file=dump_file)
-        vol_opt = self.get_structure().volume
-        structure = self.domain.copy()
-        structure.scale_lattice(vol_opt)
+        self.change_box('all', 'triclinic')
 
-        # update lammps atom positions
-        for i, coords in enumerate(structure.cart_coords):
-            self.atoms[i].position = coords
+        if dump_nstep > 0:
+            self.compute('peatom', 'all', 'pe/atom')
+            self.dump('vol-relax', 'all', 'custom', dump_nstep, dump_file,
+                      'type', 'x', 'y', 'z', 'c_peatom')
+
+        def potential_energy(volume):
+            self.scale_box(volume)
+            return self.get_potential_energy()
+
+        algo_params = algo_params or {'bounds': (0.001, 20 * self.get_structure().volume)}
+        res = minimize_scalar(potential_energy, method=algo,
+                              options={'maxiter': max_iter, 'xatol': tol},
+                              **algo_params)
+
+        if not res['success']:
+            raise RuntimeError(f"Minimization did not converge: {res}")
+
+        if dump_nstep > 0:
+            self.uncompute('peatom')
+            self.undump('vol-relax')
+
+    def scale_box(self, volume: float):
+        """Scale the simulation box, using pyamatgen scale lattice
+
+        Args:
+            volume (float):
+                new volume of unit cell
+        """
+        structure = self.get_structure()
+        structure.scale_lattice(volume)
+        lattice = structure.lattice
+        xhi, _, _, xy, yhi, _, xz, yz, zhi = lattice.matrix.flatten(order='C')
+        self.change_box('all', 'x', 'final', 0.0,  xhi, 'y', 'final', 0.0, yhi,
+                        'z', 'final', 0.0, zhi, 'xy', 'final', xy,
+                        'xz', 'final', xz, 'yz', 'final', yz, 'remap')
 
     def set_pair_potential(self, style: list, coeffs: list, mods: list = None,
                            **kwargs):
@@ -354,6 +372,24 @@ class PyMatLammps(PyLammps):
         Returns:
             SymmOp: symmetry operations necessary to convert to lammps
         """
+        matrix = self._get_lower_traingular_matrix(lattice)
+        xhi, _, _, xy, yhi, _, xz, yz, zhi = matrix.flatten(order='C')
+        # assume region origin is always (0, 0, 0)
+        # use only one region rn so set id to 1
+        self.region(region_name, 'prism', 0, xhi, 0, yhi, 0, zhi, xy, xz, yz)
+        rotation_matrix = solve(matrix, lattice.matrix)
+        symmop = SymmOp.from_rotation_and_translation(rotation_matrix)
+        return symmop
+
+    def _get_lower_traingular_matrix(self, lattice: Lattice) -> np.array:
+        """Get lower triangular matrix form of lattice matrix
+
+        Args:
+            lattice (Lattice):
+                pymatgen lattice
+        Returns:
+            ndarry: lower triangular matrix
+        """
         a, b, c = lattice.abc
         u, v, w = lattice.matrix
         matrix = np.zeros((3, 3), order='C')
@@ -364,13 +400,8 @@ class PyMatLammps(PyLammps):
         matrix[1, 1] = norm(uxv / a)  # yhi
         matrix[2, 1] = np.dot(w, np.cross(uxv, u / a)) / norm(uxv)  # yz
         matrix[2, 2] = det(lattice.matrix) / norm(uxv)  # zhi
-        xhi, _, _, xy, yhi, _, xz, yz, zhi = matrix.flatten(order='C')
-        # assume region origin is always (0, 0, 0)
-        # use only one region rn so set id to 1
-        self.region(region_name, 'prism', 0, xhi, 0, yhi, 0, zhi, xy, xz, yz)
-        rotation_matrix = solve(matrix, lattice.matrix)
-        symmop = SymmOp.from_rotation_and_translation(rotation_matrix)
-        return symmop
+        return matrix
+
 
     def create_atoms_from_structure(self, structure: Structure):
         """Create lammps atoms from a pymatgen structure
