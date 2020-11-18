@@ -6,12 +6,13 @@ import warnings
 from ast import literal_eval
 from collections import namedtuple
 import numpy as np
-from numpy.linalg import norm, det, solve
 from scipy.optimize import minimize_scalar
 from monty.io import zopen
 from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
-from pymatgen import SymmOp, Structure, Lattice, Species, Element
+from pymatgen import SymmOp, Structure, Lattice
+
+SITE_TOL = 1E-10  # fractional tolerance to push atoms into lammps box
 
 
 class PyMatLammps(PyLammps):
@@ -219,9 +220,6 @@ class PyMatLammps(PyLammps):
         Sites are scaled accordingly such that the optimized volume domain
         is just a scaled version of the input.
 
-        To do this simply run the optimize structure command allowing box
-        relaxations and reset sites to original locations, scaled accordingly.
-
         Args:
             tol (float):
                 tolerance between changes of box (lattice) between successive
@@ -372,36 +370,55 @@ class PyMatLammps(PyLammps):
         Returns:
             SymmOp: symmetry operations necessary to convert to lammps
         """
-        matrix = self._get_lower_traingular_matrix(lattice)
-        xhi, _, _, xy, yhi, _, xz, yz, zhi = matrix.flatten(order='C')
+        matrix, rotation = self._get_lower_triangular_matrix(lattice.matrix)
+
+        # TODO try to improve tilt lammps does not like very skewed boxes
+        # (borrowed from ase.lammps)
+        '''
+        flip_order = [(1, 0, 0), (2, 0, 0), (2, 1, 1)]
+        flip = np.array([abs(lower[i][j] / lower[k][k]) > 0.5
+                         for i, j, k in flip_order])
+        for ind, (i, j, k) in enumerate(flip_order):
+            if flip[ind]:
+                print('flipped')
+                change = lower[k][k]
+                change *= np.sign(lower[i][j])
+                lower[i][j] -= change
+        # Then need would need to set new lattice from this and get all the
+        # images of site coords that fall outside of the new box
+        '''
+
+        xhi, yhi, zhi, xy, xz, yz = matrix[(0, 1, 2, 1, 2, 2),
+                                           (0, 1, 2, 0, 0, 1)]
         # assume region origin is always (0, 0, 0)
         # use only one region rn so set id to 1
         self.region(region_name, 'prism', 0, xhi, 0, yhi, 0, zhi, xy, xz, yz)
-        rotation_matrix = solve(matrix, lattice.matrix)
-        symmop = SymmOp.from_rotation_and_translation(rotation_matrix)
+        symmop = SymmOp.from_rotation_and_translation(rotation)
         return symmop
 
-    def _get_lower_traingular_matrix(self, lattice: Lattice) -> np.array:
-        """Get lower triangular matrix form of lattice matrix
+    @staticmethod
+    def _get_lower_triangular_matrix(matrix: np.array) -> np.array:
+        """Get lower triangular matrix form of lattice matrix.
+
+        Get a matrix suitable to define a lamps region/box.
+        -> lower triangular with all positive diagonal elements
+
+        Try to minimize tilt to make lammps happy as well.
 
         Args:
-            lattice (Lattice):
-                pymatgen lattice
+            matrix (ndarray):
+                A lattice matrix
         Returns:
             ndarry: lower triangular matrix
         """
-        a, b, c = lattice.abc
-        u, v, w = lattice.matrix
-        matrix = np.zeros((3, 3), order='C')
-        matrix[0, 0] = a  # xhi
-        matrix[1, 0] = np.dot(v, u / a)  # xy
-        matrix[2, 0] = np.dot(w, u / a)  # xz
-        uxv = np.cross(u, v)
-        matrix[1, 1] = norm(uxv / a)  # yhi
-        matrix[2, 1] = np.dot(w, np.cross(uxv, u / a)) / norm(uxv)  # yz
-        matrix[2, 2] = det(lattice.matrix) / norm(uxv)  # zhi
-        return matrix
-
+        rotation, upper = np.linalg.qr(matrix.T, mode='complete')
+        # make sure all diagonal elements are positive
+        diag = np.array(np.diag(upper) > 0, dtype=int)
+        diag[diag == 0] = -1  # mirror negatives
+        inversion = np.diag(diag)
+        upper = inversion @ upper
+        rotation = rotation @ inversion
+        return upper.T, rotation.T
 
     def create_atoms_from_structure(self, structure: Structure):
         """Create lammps atoms from a pymatgen structure
@@ -409,17 +426,19 @@ class PyMatLammps(PyLammps):
         Args:
             structure (Structure)
         """
+
         for site in structure:
-            site.coords += 1E-14  # force small negatives to positive
+            # force values near boundary into box to make lammps happy
+            site.frac_coords += SITE_TOL * (np.array([.5, .5, .5]) - site.frac_coords)
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
 
         if len(structure) != len(self.atoms):
-            raise RuntimeError(f"Only {len(self.atoms)} lammps atoms from "
-                               f"{len(structure)} in the given structure "
-                               "were created. \nProbably numerical error made "
-                               "coordinates appear outside box.\n"
-                               "Check lammps log for more details.")
+            raise RuntimeError(
+                f"Only {len(self.atoms)} lammps atoms from {len(structure)} in"
+                " the given structure were created.\n"
+                "Probably numerical error pushed some coordinates to appear "
+                "outside box.\n Check lammps log for more details.")
 
     def create_lattice_from_structure(self, structure: Structure):
         basis = sum((['basis', *crds] for crds in structure.frac_coords), [])
