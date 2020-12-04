@@ -12,7 +12,7 @@ from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
 from pymatgen import SymmOp, Structure, Lattice
 
-SITE_TOL = 1E-10  # fractional tolerance to push atoms into lammps box
+SITE_TOL = 1E-12  # fractional tolerance to push atoms into lammps box
 
 
 class PyMatLammps(PyLammps):
@@ -65,6 +65,11 @@ class PyMatLammps(PyLammps):
         """Return the inverse mapping of atom_types"""
         if self.atom_types is not None:
             return {v: k for k, v in self.atom_types.items()}
+
+    def reset(self):
+        """Clear all lammps commands and rerun default commands"""
+        self.clear()
+        self.lmp.commands_list(self.default_cmds)
 
     def get_potential_energy(self) -> float:
         """Get the potential energy evaluated by lammps."""
@@ -429,7 +434,10 @@ class PyMatLammps(PyLammps):
 
         for site in structure:
             # force values near boundary into box to make lammps happy
-            site.frac_coords += SITE_TOL * (np.array([.5, .5, .5]) - site.frac_coords)
+            #dir = np.argmin(site.frac_coords)
+            site.frac_coords[site.frac_coords < 0.0] += 1.0
+            site.frac_coords[site.frac_coords > 1.0] -= 1.0
+            site.frac_coords += SITE_TOL * (np.array([0.5, 0.5, 0.5]) - site.frac_coords)
             self.create_atoms(self.atom_types[site.specie], 'single',
                               *site.coords, 'units', 'box')
 
