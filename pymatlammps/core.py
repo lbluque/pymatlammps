@@ -68,13 +68,14 @@ class PyMatLammps(PyLammps):
 
     def reset(self):
         """Clear all lammps commands and rerun default commands"""
+        self.command("variable * delete")
         self.clear()
         self.lmp.commands_list(self.default_cmds)
 
     def get_potential_energy(self) -> float:
         """Get the potential energy evaluated by lammps."""
         _ = self.run(0)  # force evaluation
-        return self.variables['pe'].value
+        return self.eval('pe')
 
     def get_structure(self) -> Structure:
         """Get a Structure for current lammps state"""
