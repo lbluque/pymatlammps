@@ -144,7 +144,7 @@ class OptimizeStructureFW(Firework):
 
         if files_to_write is not None:
             tasks.insert(0, FileWriteTask(files_to_write=files_to_write))
-        
+
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
                          **kwargs)
