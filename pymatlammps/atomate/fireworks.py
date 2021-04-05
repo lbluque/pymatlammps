@@ -4,7 +4,7 @@ Simple Fireworks using pymatlammps
 
 __author__ = "Luis Barroso-Luque"
 
-from fireworks import Firework
+from fireworks import Firework, FileWriteTask
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from pymatgen import Structure
 from pymatlammps.atomate.firetasks import RunStructurePML, PMLtoDB
@@ -21,6 +21,7 @@ class StaticFW(Firework):
                  init_kwargs: dict = None,
                  additional_setup_commands: list = None,
                  parse_dump_files: bool = True,
+                 files_to_write: dict = None,
                  name: str = 'PML static calculation',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -45,6 +46,9 @@ class StaticFW(Firework):
                 simulation domain (ie region, box, atoms)
             parse_dump_files (bool):
                 If true will parse dump files.
+            files_to_write (dict):
+                dictionary of any files to write using the FileWriteTask.
+                Useful to write input files ie for potentials.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -63,6 +67,10 @@ class StaticFW(Firework):
             PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
                     additional_fields={"task_label": name})
         ]
+
+        if files_to_write is not None:
+            tasks.insert(0, FileWriteTask(files_to_write=files_to_write))
+
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
                          **kwargs)
@@ -79,6 +87,7 @@ class OptimizeStructureFW(Firework):
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
                  parse_dump_files: bool = False,
+                 files_to_write: dict = None,
                  name: str = 'PML structure optimization',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -106,6 +115,9 @@ class OptimizeStructureFW(Firework):
                 simulation domain (ie region, box, atoms)
             parse_dump_files (bool):
                 If true will parse dump files.
+            files_to_write (dict):
+                dictionary of any files to write using the FileWriteTask.
+                Useful to write input files ie for potentials.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -129,6 +141,10 @@ class OptimizeStructureFW(Firework):
             PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
                     additional_fields={"task_label": name})
         ]
+
+        if files_to_write is not None:
+            tasks.insert(0, FileWriteTask(files_to_write=files_to_write))
+        
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
                          **kwargs)
@@ -146,6 +162,7 @@ class OptimizeVolumeFW(Firework):
                  optim_params: dict = None, init_kwargs: dict = None,
                  additional_setup_commands: list = None,
                  parse_dump_files: bool = False,
+                 files_to_write: dict = None,
                  name: str = 'PML volume optimization',
                  db_file: str = DB_FILE, parents: list = None, **kwargs):
         """
@@ -173,6 +190,9 @@ class OptimizeVolumeFW(Firework):
                 simulation domain (ie region, box, atoms)
             parse_dump_files (bool):
                 If true will parse dump files.
+            files_to_write (dict):
+                dictionary of any files to write using the FileWriteTask.
+                Useful to write input files ie for potentials.
             name (str):
                 Name for the Firework.
             db_file (str):
@@ -196,6 +216,10 @@ class OptimizeVolumeFW(Firework):
             PMLtoDB(parse_dump_files=parse_dump_files, db_file=db_file,
                     additional_fields={"task_label": name})
         ]
+
+        if files_to_write is not None:
+            tasks.insert(0, FileWriteTask(files_to_write=files_to_write))
+
         super().__init__(tasks=tasks, parents=parents,
                          name=f"{structure.composition.reduced_formula}-{name}",
                          **kwargs)
