@@ -10,7 +10,7 @@ from scipy.optimize import minimize_scalar
 from monty.io import zopen
 from lammps import PyLammps
 from pymatgen.core.periodic_table import get_el_sp
-from pymatgen import SymmOp, Structure, Lattice
+from pymatgen.core import SymmOp, Structure, Lattice
 
 SITE_TOL = 1E-12  # fractional tolerance to push atoms into lammps box
 
