@@ -8,7 +8,7 @@ from itertools import chain
 from glob import glob
 from monty.io import zopen
 from monty.json import jsanitize
-from pymatgen import Composition, Structure
+from pymatgen.core import Composition, Structure
 from pymatgen.apps.borg.hive import AbstractDrone
 from pymatlammps.core import parse_dump
 from pymatlammps import __version__ as pml_version

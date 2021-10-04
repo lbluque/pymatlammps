@@ -6,7 +6,7 @@ __author__ = "Luis Barroso-Luque"
 
 from fireworks import Firework, FileWriteTask
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
-from pymatgen import Structure
+from pymatgen.core import Structure
 from pymatlammps.atomate.firetasks import RunStructurePML, PMLtoDB
 
 DB_FILE = None  # '>>db_file<<'
